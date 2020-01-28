@@ -3,6 +3,7 @@ import java.io.{File, IOException}
 import scala.io.Source
 import scala.util.{Try, Success, Failure}
 import scala.collection.mutable.{Map => MutableMap}
+import scala.collection.immutable.ListMap
 
 /**
  * @author Piotr KALINA (piotr@kalina.cloud)
@@ -75,14 +76,21 @@ object Statistics {
     }
 
     def print() = {
-        val report = s"""Num of processed files: ${generalInfo("totalFiles")}
+        val report = s"""```
+        |Num of processed files: ${generalInfo("totalFiles")}
         |Num of processed measurements: ${generalInfo("totalCount")}
         |Num of failed measurements: ${generalInfo("failedCount")}""".stripMargin
         println(report)
+        println(s"""
+        |Sensors with highest avg humidity:
+        |
+        |sensor-id,min,avg,max""".stripMargin)
 
-        for ((k,v) <- sensorsInfo) {
+        for ((k,v) <- ListMap(sensorsInfo.toSeq.sortWith(_._2._3 > _._2._3):_*)) {
+            // TODO: convert 0 to NaN
             println(s"${k}, ${v._1}, ${v._2}, ${v._3}")
         }
+        println("```")
     }
 }
 
@@ -124,8 +132,6 @@ object SensorStats {
                 } catch {
                     case e: Exception => { stats.generalInfoUpdate(1,1) }
                 }
-
-                println(s"${data.sensorId}|${data.value}")
             }
             bufferedSource.close
         }
