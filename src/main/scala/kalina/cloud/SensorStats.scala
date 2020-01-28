@@ -17,7 +17,7 @@ object Statistics {
     private val generalInfo = MutableMap[String, Long]("totalFiles" -> 0, "totalCount" -> 0, "failedCount" -> 0)
     private val sensorsInfo = MutableMap[String, (Int, Int, Int)]()
 
-    def newFile() = {
+    def add() = {
         generalInfo.updateWith("totalFiles") ({
             case Some(current) => Some(current+1)
             case None => Some(0)
@@ -25,30 +25,26 @@ object Statistics {
     }
 
     private def minUpdate(min: Int, value: Int): Int = {
-        if (value < min) {
-            value
-        } else {
-            min 
-        }
+        if (value < min) value else min
     }
 
     private def maxUpdate(max: Int, value: Int): Int = {
-        if (value > max) {
-            value
-        } else {
-            max
-        }
+        if (value > max) value else max
     }
 
     private def avgUpdate(avg: Int, value: Int): Int = {
         (avg+value)/2
     }
 
-    def sensorsUpdate(sensorId: String, value: Option[Int]) = {
+    def sensorUpdate(sensorId: String, value: Option[Int]) = {
         sensorsInfo.updateWith(sensorId) ({
             case Some(current) => {
                 if (value.isDefined) {
-                    Some((minUpdate(current._1, value.get), maxUpdate(current._2, value.get), avgUpdate(current._3, value.get)))
+                    Some((
+                        minUpdate(current._1, value.get),
+                        maxUpdate(current._2, value.get),
+                        avgUpdate(current._3, value.get)
+                    ))
                 } else {
                     Some(current)
                 }
@@ -61,35 +57,38 @@ object Statistics {
                 }
             }
         })
-    }
 
-    def generalInfoUpdate(count: Long, failed: Long) = {
         generalInfo.updateWith("totalCount") ({
-            case Some(current) => Some(current+count)
+            case Some(current) => Some(current+1)
             case None => Some(0)
         })
 
-        generalInfo.updateWith("failedCount") ({
-            case Some(current) => Some(current+failed)
-            case None => Some(0)
-        })
+        if (value.isEmpty) {
+            generalInfo.updateWith("failedCount") ({
+                case Some(current) => Some(current+1)
+                case None => Some(0)
+            })
+        }
     }
 
     def print() = {
         val report = s"""```
         |Num of processed files: ${generalInfo("totalFiles")}
         |Num of processed measurements: ${generalInfo("totalCount")}
-        |Num of failed measurements: ${generalInfo("failedCount")}""".stripMargin
-        println(report)
-        println(s"""
+        |Num of failed measurements: ${generalInfo("failedCount")}
+        |
         |Sensors with highest avg humidity:
         |
-        |sensor-id,min,avg,max""".stripMargin)
+        |sensor-id,min,avg,max""".stripMargin
+
+        println(report)
 
         for ((k,v) <- ListMap(sensorsInfo.toSeq.sortWith(_._2._3 > _._2._3):_*)) {
             // TODO: convert 0 to NaN
+            // TODO: how to distinguish 0 from 0 and NaN (it's mixed here)
             println(s"${k}, ${v._1}, ${v._2}, ${v._3}")
         }
+
         println("```")
     }
 }
@@ -118,20 +117,13 @@ object SensorStats {
         val dataFiles = getListOfReportsData(args(0))
         val stats = Statistics
         for (dataFile <- dataFiles) {
-            stats.newFile
+            stats.add
             val bufferedSource = io.Source.fromFile(dataFile)
             for (line <- bufferedSource.getLines.drop(1)) {
                 val cols = line.split(",").map(_.trim)
                 val data = ReportData.Measurement(cols(0),cols(1))
                 val someValue: Option[Int] = Option(data.value).flatMap(_.toIntOption)
-                stats.sensorsUpdate(cols(0), someValue)
-
-                try {
-                    data.value.toLong
-                    stats.generalInfoUpdate(1,0)
-                } catch {
-                    case e: Exception => { stats.generalInfoUpdate(1,1) }
-                }
+                stats.sensorUpdate(cols(0), someValue)
             }
             bufferedSource.close
         }
