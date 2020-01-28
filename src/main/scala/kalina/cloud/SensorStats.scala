@@ -13,10 +13,8 @@ object ReportData {
 }
 
 object Statistics {
-    case class SensorStats(min: Int, max: Int, avg: Int)
-
     private val generalInfo = MutableMap[String, Long]("totalFiles" -> 0, "totalCount" -> 0, "failedCount" -> 0)
-    private val sensorsInfo = MutableMap[String, SensorStats]()
+    private val sensorsInfo = MutableMap[String, (Int, Int, Int)]()
 
     def newFile() = {
         generalInfo.updateWith("totalFiles") ({
@@ -28,15 +26,17 @@ object Statistics {
     private def minUpdate(min: Int, value: Int): Int = {
         if (value < min) {
             value
+        } else {
+            min 
         }
-        min
     }
 
     private def maxUpdate(max: Int, value: Int): Int = {
         if (value > max) {
             value
+        } else {
+            max
         }
-        max
     }
 
     private def avgUpdate(avg: Int, value: Int): Int = {
@@ -46,15 +46,19 @@ object Statistics {
     def sensorsUpdate(sensorId: String, value: Option[Int]) = {
         sensorsInfo.updateWith(sensorId) ({
             case Some(current) => {
-                if (value.isEmpty) {
-                    Some(SensorStats(0,0,0))
-                }
-                else {
-                    Some(SensorStats(minUpdate(current.min, value.get),
-                        maxUpdate(current.max, value.get), avgUpdate(current.avg, value.get)))
+                if (value.isDefined) {
+                    Some((minUpdate(current._1, value.get), maxUpdate(current._2, value.get), avgUpdate(current._3, value.get)))
+                } else {
+                    Some(current)
                 }
             }
-            case None => {Some(SensorStats(value.get, value.get, value.get))}
+            case None => {
+                if (value.isEmpty) {
+                    Some((0,0,0))
+                } else {
+                    Some((value.get, value.get, value.get))
+                }
+            }
         })
     }
 
@@ -77,7 +81,7 @@ object Statistics {
         println(report)
 
         for ((k,v) <- sensorsInfo) {
-            println(s"${k}, ${v.min}, ${v.max}, ${v.avg}")
+            println(s"${k}, ${v._1}, ${v._2}, ${v._3}")
         }
     }
 }
@@ -111,7 +115,8 @@ object SensorStats {
             for (line <- bufferedSource.getLines.drop(1)) {
                 val cols = line.split(",").map(_.trim)
                 val data = ReportData.Measurement(cols(0),cols(1))
-                stats.sensorsUpdate(cols(0), Option(data.value).flatMap(_.toIntOption))
+                val someValue: Option[Int] = Option(data.value).flatMap(_.toIntOption)
+                stats.sensorsUpdate(cols(0), someValue)
 
                 try {
                     data.value.toLong
@@ -128,7 +133,7 @@ object SensorStats {
         stats.print
       }
       catch {
-        case exc: Exception => println(s"failed to get list of reports from: ${args(0)}. Reason: ${exc.getMessage}")
+        case exc: Exception => println(s"failed to process reports from: ${args(0)}. Reason: ${exc.getMessage}")
       }
   }
 
