@@ -1,4 +1,4 @@
-package kalina.cloud
+package test.luxoft
 import java.io.{File, IOException}
 import scala.io.Source
 import scala.util.{Try, Success, Failure}
@@ -9,16 +9,9 @@ object ReportData {
     case class Measurement(sensorId: String, value: String)
 }
 
-object Statistics {
-    private val generalInfo = MutableMap[String, Long]("totalFiles" -> 0, "totalCount" -> 0, "failedCount" -> 0)
-    private val sensorsInfo = MutableMap[String, (Int, Int, Int)]()
-
-    def add() = {
-        generalInfo.updateWith("totalFiles") ({
-            case Some(current) => Some(current+1)
-            case None => Some(0)
-        })
-    }
+class SensorStatistics {
+    val generalInfo = MutableMap[String, Int]("totalFiles" -> 0, "totalCount" -> 0, "failedCount" -> 0)
+    val sensorsInfo = MutableMap[String, (Int, Int, Long, Long, Long)]()
 
     private def minUpdate(min: Int, value: Int): Int = {
         if (min == -1) value else {
@@ -26,19 +19,8 @@ object Statistics {
         }
     }
 
-    private def avgUpdate(avg: Int, value: Int): Int = {
-    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    // this is wrong calculation of average (found during final tests)
-    // 
-    // in order to fix it redesign is required:
-    //
-    // 1. instead of calculating min/max/avg on fly we should generate stats map per file
-    // 2. perform map merge/combine process, which will reduce the sensor data min/max and
-    // 3. calculate properly the average
-    // 4. the process of sorting values can be kept as it is now
-    //
-    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        if (avg != -1) (avg+value)/2 else value
+    private def sumUpdate(sum: Long, value: Long): Long = {
+         sum + value
     }
 
     private def maxUpdate(max: Int, value: Int): Int = {
@@ -51,18 +33,20 @@ object Statistics {
                 if (value.isDefined) {
                     Some((
                         minUpdate(current._1, value.get),
-                        avgUpdate(current._2, value.get),
-                        maxUpdate(current._3, value.get)
+                        maxUpdate(current._2, value.get),
+                        sumUpdate(current._3, value.get.toLong),
+                        current._4 + 1,
+                        current._5
                     ))
                 } else {
-                    Some(current)
+                    Some(current._1, current._2, current._3, current._4 + 1, current._5 + 1)
                 }
             }
             case None => {
                 if (value.isEmpty) {
-                    Some((-1,-1,-1))
+                    Some((-1,-1, 0, 1, 1))
                 } else {
-                    Some((value.get, value.get, value.get))
+                    Some((value.get, value.get, value.get.toLong, 1, 0))
                 }
             }
         })
@@ -80,7 +64,24 @@ object Statistics {
         }
     }
 
-    def formatValue(value: Int): String = {
+    def mergeWith(stats: SensorStatistics): SensorStatistics = {
+        // Maybe using scalaz and/or Semigroup from Cats framework could do the trick
+        // During merge we update min, max and rest of information from sensorsInfo
+        // sum + sumCount will be used at final stage to calculate average
+        //
+        // val merged = generalInfo ++ ps.generalInfo.map {
+        //    case (key,count) => key -> (count + generalInfo.getOrElse(key,0)) }
+
+        // val report = s"""
+        // |Num of processed files: ${merged("totalFiles")}
+        // |Num of processed measurements: ${merged("totalCount")}
+        // |Num of failed measurements: ${merged("failedCount")}""".stripMargin
+        // println(report)
+        //
+        stats
+    }
+
+    def formatValue(value: Long): String = {
         if (value > -1)
             value.toString
         else
@@ -88,18 +89,19 @@ object Statistics {
     }
 
     def print() = {
-        val report = s"""Num of processed files: ${generalInfo("totalFiles")}
+        val report = s"""
+        |Num of processed files: ${generalInfo("totalFiles")}
         |Num of processed measurements: ${generalInfo("totalCount")}
         |Num of failed measurements: ${generalInfo("failedCount")}
         |
         |Sensors with highest avg humidity:
         |
-        |sensor-id,min,avg,max""".stripMargin
+        |sensor-id,min,max,sum,count,failed""".stripMargin
 
         println(report)
 
         for ((k,v) <- ListMap(sensorsInfo.toSeq.sortWith(_._2._2 > _._2._2):_*)) {
-            println(s"${k}, ${formatValue(v._1)}, ${formatValue(v._2)}, ${formatValue(v._3)}")
+            println(s"${k}, ${formatValue(v._1)}, ${formatValue(v._2)}, ${v._3}, ${v._4}, ${v._5}")
         }
     }
 }
@@ -126,9 +128,9 @@ object SensorStats {
   def main(args : Array[String]) {
       try {
         val dataFiles = getListOfReportsData(args(0))
-        val stats = Statistics
+        val totalStats = new SensorStatistics
         for (dataFile <- dataFiles) {
-            stats.add
+            val stats = new SensorStatistics
             val bufferedSource = io.Source.fromFile(dataFile)
             for (line <- bufferedSource.getLines.drop(1)) {
                 val cols = line.split(",").map(_.trim)
@@ -137,9 +139,11 @@ object SensorStats {
                 stats.sensorUpdate(cols(0), someValue)
             }
             bufferedSource.close
+            stats.print
+
+            totalStats.mergeWith(stats)
         }
 
-        stats.print
       }
       catch {
         case exc: Exception => println(s"failed to process reports from: ${args(0)}. Reason: ${exc.getMessage}")
