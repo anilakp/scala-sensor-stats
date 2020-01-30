@@ -25,15 +25,17 @@ object Statistics {
     }
 
     private def minUpdate(min: Int, value: Int): Int = {
-        if (value < min) value else min
+        if (min == -1) value else {
+            if (value < min) value else min
+        }
+    }
+
+    private def avgUpdate(avg: Int, value: Int): Int = {
+        if (avg != -1) (avg+value)/2 else avg
     }
 
     private def maxUpdate(max: Int, value: Int): Int = {
         if (value > max) value else max
-    }
-
-    private def avgUpdate(avg: Int, value: Int): Int = {
-        (avg+value)/2
     }
 
     def sensorUpdate(sensorId: String, value: Option[Int]) = {
@@ -42,8 +44,8 @@ object Statistics {
                 if (value.isDefined) {
                     Some((
                         minUpdate(current._1, value.get),
-                        maxUpdate(current._2, value.get),
-                        avgUpdate(current._3, value.get)
+                        avgUpdate(current._2, value.get),
+                        maxUpdate(current._3, value.get)
                     ))
                 } else {
                     Some(current)
@@ -51,7 +53,7 @@ object Statistics {
             }
             case None => {
                 if (value.isEmpty) {
-                    Some((0,0,0))
+                    Some((-1,-1,-1))
                 } else {
                     Some((value.get, value.get, value.get))
                 }
@@ -71,9 +73,15 @@ object Statistics {
         }
     }
 
+    def formatValue(value: Long): String = {
+        if (value > -1)
+            value.toString
+        else
+            "Nan"
+    }
+
     def print() = {
-        val report = s"""```
-        |Num of processed files: ${generalInfo("totalFiles")}
+        val report = s"""Num of processed files: ${generalInfo("totalFiles")}
         |Num of processed measurements: ${generalInfo("totalCount")}
         |Num of failed measurements: ${generalInfo("failedCount")}
         |
@@ -83,13 +91,9 @@ object Statistics {
 
         println(report)
 
-        for ((k,v) <- ListMap(sensorsInfo.toSeq.sortWith(_._2._3 > _._2._3):_*)) {
-            // TODO: convert 0 to NaN
-            // TODO: how to distinguish 0 from 0 and NaN (it's mixed here)
-            println(s"${k}, ${v._1}, ${v._2}, ${v._3}")
+        for ((k,v) <- ListMap(sensorsInfo.toSeq.sortWith(_._2._2 > _._2._2):_*)) {
+            println(s"${k}, ${formatValue(v._1)}, ${formatValue(v._2)}, ${formatValue(v._3)}")
         }
-
-        println("```")
     }
 }
 
