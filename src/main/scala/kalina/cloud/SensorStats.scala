@@ -38,7 +38,7 @@ object Statistics {
     // 4. the process of sorting values can be kept as it is now
     //
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        if (avg != -1) (avg+value)/2 else avg
+        if (avg != -1) (avg+value)/2 else value
     }
 
     private def maxUpdate(max: Int, value: Int): Int = {
@@ -80,7 +80,7 @@ object Statistics {
         }
     }
 
-    def formatValue(value: Long): String = {
+    def formatValue(value: Int): String = {
         if (value > -1)
             value.toString
         else
