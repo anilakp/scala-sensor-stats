@@ -5,10 +5,6 @@ import scala.util.{Try, Success, Failure}
 import scala.collection.mutable.{Map => MutableMap}
 import scala.collection.immutable.ListMap
 
-/**
- * @author Piotr KALINA (piotr@kalina.cloud)
- */
-
 object ReportData {
     case class Measurement(sensorId: String, value: String)
 }
@@ -31,6 +27,17 @@ object Statistics {
     }
 
     private def avgUpdate(avg: Int, value: Int): Int = {
+    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    // this is wrong calculation of average (found during final tests)
+    // 
+    // in order to fix it redesign is required:
+    //
+    // 1. instead of calculating min/max/avg on fly we should generate stats map per file
+    // 2. perform map merge/combine process, which will reduce the sensor data min/max and
+    // 3. calculate properly the average
+    // 4. the process of sorting values can be kept as it is now
+    //
+    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         if (avg != -1) (avg+value)/2 else avg
     }
 
