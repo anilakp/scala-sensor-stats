@@ -1,3 +1,23 @@
+# Comments on solution
+The solution unfortunately is not complete.
+I did not manage to use properly scalaz and cats as I am not yet very familiar with those
+frameworks.
+
+My idea to solve the problem was to read the files one by one. For every file, I instantiate class
+SensorsStatistcs which has sensorsInfo (per sensor id) + globalInfo (containing general info about
+totalfiles processes, total count, total failed). Global info are of object class.
+SensorsStatics are updated for every line of leader report data found.
+The main problem here is calculation of average, which cannot be done on-fly.
+So partially I wanted to store total sum of all valid values, then with the count of all
+measurements during the process of mergeWith (using cats and or scalaz) I could calculate during
+merge process final statistics.
+
+Unfortunately I did not manage to make it work.
+Tests have not yet been added, as the task is not complete.
+My testing was basing on two sample data sets.
+
+Project is written through maven - see usage below
+
 # Usage
 - mvn test
 - mvn exec:java -Dexec.args="path_to_csv_files"
