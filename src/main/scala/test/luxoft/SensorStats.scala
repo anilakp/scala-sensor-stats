@@ -9,9 +9,23 @@ object ReportData {
     case class Measurement(sensorId: String, value: String)
 }
 
+// represents information like totalFiles, totalCount, totalFailed information from all leader reports
+object GlobalStatistics {
+    val data = MutableMap[String, Int]()
+}
+
 class SensorStatistics {
-    val generalInfo = MutableMap[String, Int]("totalFiles" -> 0, "totalCount" -> 0, "failedCount" -> 0)
+    // all values but not min/max should be Long, as we can have plenty of data
+    // map contains id of sensor + min,max,sum,totalCount,totalfailed
+    // sum and totalCount/failedCount per sensor would be used to calculate average
+    // during mergeWith call
     val sensorsInfo = MutableMap[String, (Int, Int, Long, Long, Long)]()
+    val globalStats = GlobalStatistics
+
+    globalStats.data.updateWith("totalFiles") ({
+        case Some(current) => Some(current+1)
+        case None => Some(0)
+    })
 
     private def minUpdate(min: Int, value: Int): Int = {
         if (min == -1) value else {
@@ -51,13 +65,13 @@ class SensorStatistics {
             }
         })
 
-        generalInfo.updateWith("totalCount") ({
+        globalStats.data.updateWith("totalCount") ({
             case Some(current) => Some(current+1)
             case None => Some(0)
         })
 
         if (value.isEmpty) {
-            generalInfo.updateWith("failedCount") ({
+            globalStats.data.updateWith("failedCount") ({
                 case Some(current) => Some(current+1)
                 case None => Some(0)
             })
@@ -65,8 +79,8 @@ class SensorStatistics {
     }
 
     def mergeWith(stats: SensorStatistics): SensorStatistics = {
-        // Maybe using scalaz and/or Semigroup from Cats framework could do the trick
-        // During merge we update min, max and rest of information from sensorsInfo
+        // I would use scalaz and/or Semigroup from Cats framework but have not managed to make it
+        // work. I imagine that during merge we update min, max and rest of information from sensorsInfo
         // sum + sumCount will be used at final stage to calculate average
         //
         // val merged = generalInfo ++ ps.generalInfo.map {
@@ -90,9 +104,9 @@ class SensorStatistics {
 
     def print() = {
         val report = s"""
-        |Num of processed files: ${generalInfo("totalFiles")}
-        |Num of processed measurements: ${generalInfo("totalCount")}
-        |Num of failed measurements: ${generalInfo("failedCount")}
+        |Num of processed files: ${globalStats.data("totalFiles")}
+        |Num of processed measurements: ${globalStats.data("totalCount")}
+        |Num of failed measurements: ${globalStats.data("failedCount")}
         |
         |Sensors with highest avg humidity:
         |
